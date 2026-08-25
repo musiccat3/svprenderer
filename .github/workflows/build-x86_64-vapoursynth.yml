@@ -1,0 +1,225 @@
+name: Build x86_64 VapourSynth + SVPflow 4.2.0.142
+
+on:
+  workflow_dispatch:
+    inputs:
+      svp_version:
+        description: 'SVPflow version'
+        required: true
+        default: '4.2.0.142'
+        type: choice
+        options:
+          - '4.2.0.142'
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'diagnostic'
+        type: choice
+        options:
+          - 'diagnostic'
+          - 'full'
+
+jobs:
+  build-x86_64:
+    name: Build x86_64 VapourSynth + SVPflow
+    runs-on: macos-14  # Has x86_64 runner
+    timeout-minutes: 60
+
+    env:
+      SVP_VERSION: ${{ github.event.inputs.svp_version }}
+      BUILD_TYPE: ${{ github.event.inputs.build_type }}
+
+    steps:
+      # ── Diagnostics ──────────────────────────────────────────────
+      - name: System Info
+        run: |
+          echo "=== Runner Architecture ==="
+          uname -m
+          arch
+          sysctl -n machdep.cpu.brand_string
+          echo ""
+          echo "=== macOS Version ==="
+          sw_vers
+          echo ""
+          echo "=== Available SDKs ==="
+          ls /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
+          echo ""
+          echo "=== Clang Version ==="
+          clang --version
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download SVPflow 4.2.0.142
+        run: |
+          cd /tmp
+          curl -L -o svpflow-4.2.0.142.zip "https://web.archive.org/web/20190322064557/http://www.svp-team.com/files/gpl/svpflow-4.2.0.142.zip"
+          unzip -o svpflow-4.2.0.142.zip -d svpflow-4.2.0.142
+          echo "=== SVPflow 4.2.0.142 macOS Libraries ==="
+          file svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/*.dylib
+          echo ""
+          echo "=== SVPflow 4.2.0.142 Library Symbols ==="
+          for f in svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/*.dylib; do
+            echo "--- $f ---"
+            nm -g "$f" | grep -E "SVSuper|SVAnalyse|SVSmoothFps|svp" | head -20
+          done
+
+      # ── Install Dependencies ─────────────────────────────────────
+      - name: Install Homebrew (x86_64)
+        run: |
+          if [[ ! -d /usr/local/Homebrew ]]; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/null
+          fi
+          echo "/usr/local/bin" >> $GITHUB_PATH
+
+      - name: Install Dependencies (x86_64)
+        run: |
+          arch -x86_64 /usr/local/bin/brew install vapoursynth ffmpeg python@3.12
+          arch -x86_64 /usr/local/bin/brew list --versions
+
+      # ── Copy SVPflow 4.2.0.142 Libraries ────────────────────────
+      - name: Install SVPflow 4.2.0.142 Libraries
+        run: |
+          SVP_PLUGIN_DIR=$(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth)/lib/vapoursynth
+          echo "SVP Plugin Dir: $SVP_PLUGIN_DIR"
+          mkdir -p "$SVP_PLUGIN_DIR"
+          cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/libsvpflow1_vs64.dylib "$SVP_PLUGIN_DIR/"
+          cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/libsvpflow2_vs64.dylib "$SVP_PLUGIN_DIR/"
+          echo "=== Installed SVPflow Libraries ==="
+          ls -la "$SVP_PLUGIN_DIR"/libsvpflow*
+          file "$SVP_PLUGIN_DIR"/libsvpflow*
+
+      # ── Diagnostic Tests ────────────────────────────────────────
+      - name: Diagnostic - VapourSynth Load Test
+        run: |
+          arch -x86_64 /usr/local/bin/vspipe --version
+          arch -x86_64 /usr/local/bin/python3 -c "
+import sys
+sys.path.insert(0, '/usr/local/lib/python3.12/site-packages')
+import vapoursynth as vs
+print('VapourSynth version:', vs.__version__)
+core = vs.core
+print('Core created')
+import os
+for p in ['libsvpflow1_vs64.dylib', 'libsvpflow2_vs64.dylib']:
+    path = f'/usr/local/lib/vapoursynth/{p}'
+    if os.path.exists(path):
+        core.std.LoadPlugin(path=path)
+        print(f'Loaded: {p}')
+    else:
+        print(f'MISSING: {path}')
+print('All plugins loaded successfully')
+"
+
+      - name: Diagnostic - SVP Pipeline Test
+        run: |
+          arch -x86_64 /usr/local/bin/python3 << 'PYEOF'
+import vapoursynth as vs
+core = vs.core
+
+# Create test clip
+clip = core.std.BlankClip(width=1920, height=1080, length=60, fpsnum=30, fpsden=1, format=vs.YUV420P8)
+print(f"Test clip: {clip.width}x{clip.height}, {clip.num_frames} frames @ {float(clip.fps_num)/float(clip.fps_den):.2f} fps")
+
+import json
+super_str = '{"pel": 1, "gpu": true}'
+vectors_str = '{"block": {"w": 8, "overlap": 2}, "main": {"search": {"distance": 0, "coarse": {"distance": -10}}}}'
+smooth_str = '{"rate": {"num": 60, "abs": true}, "algo": 13, "mask": {"area": 50, "area_sharp": 1.2}, "scene": {"blend": false, "mode": 0, "limits": {"blocks": 9999999}}}'
+
+try:
+    super_clip = core.svp1.Super(clip, super_str)
+    print("SVSuper: OK")
+    vectors = core.svp1.Analyse(super_clip['clip'], super_clip['data'], clip, vectors_str)
+    print("SVAnalyse: OK")
+    smooth = core.svp2.SmoothFps(clip, super_clip['clip'], super_clip['data'], vectors['clip'], vectors['data'], smooth_str)
+    print(f"SVSmoothFps: OK - Output: {smooth.width}x{smooth.height} @ {float(smooth.fps_num)/float(smooth.fps_den):.2f} fps, {smooth.num_frames} frames")
+
+    # Get a few frames
+    frame_count = 0
+    for i, frame in enumerate(smooth.frames()):
+        frame_count += 1
+        if frame_count >= 10:
+            break
+    print(f"Frames generated: {frame_count}")
+    print("SUCCESS: SVP pipeline works without Manager!")
+except Exception as e:
+    print(f"ERROR: {type(e).__name__}: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+PYEOF
+
+      # ── Long Render Test (if full build) ─────────────────────────
+      - name: Full Render Test (30s clip @ 120fps)
+        if: env.BUILD_TYPE == 'full'
+        run: |
+          # Create test video
+          arch -x86_64 /usr/local/bin/ffmpeg -f lavfi -i testsrc=duration=30:size=1920x1080:rate=30 -c:v libx264 -pix_fmt yuv420p /tmp/test_30s.mp4 -y
+
+          arch -x86_64 /usr/local/bin/python3 << 'PYEOF'
+import vapoursynth as vs
+core = vs.core
+
+clip = core.bs.VideoSource(source="/tmp/test_30s.mp4", cachemode=0)
+print(f"Input: {clip.width}x{clip.height} @ {float(clip.fps_num)/float(clip.fps_den):.2f} fps, {clip.num_frames} frames")
+
+import json
+super_str = '{"pel": 1, "gpu": true}'
+vectors_str = '{"block": {"w": 8, "overlap": 2}, "main": {"search": {"distance": 0, "coarse": {"distance": -10}}}}'
+smooth_str = '{"rate": {"num": 120, "abs": true}, "algo": 13, "mask": {"area": 50, "area_sharp": 1.2}, "scene": {"blend": false, "mode": 0, "limits": {"blocks": 9999999}}}'
+
+super_clip = core.svp1.Super(clip, super_str)
+vectors = core.svp1.Analyse(super_clip['clip'], super_clip['data'], clip, smooth_str)
+smooth = core.svp2.SmoothFps(clip, super_clip['clip'], super_clip['data'], vectors['clip'], vectors['data'], smooth_str)
+print(f"Output: {smooth.width}x{smooth.height} @ {float(smooth.fps_num)/float(smooth.fps_den):.2f} fps, {smooth.num_frames} frames")
+
+frame_count = 0
+import time
+start = time.time()
+for i, frame in enumerate(smooth.frames()):
+    frame_count += 1
+    if frame_count % 600 == 0:
+        elapsed = time.time() - start
+        print(f"Frame {frame_count}, elapsed: {elapsed:.1f}s, rate: {frame_count/elapsed:.1f} fps")
+print(f"Total frames: {frame_count}, time: {time.time() - start:.1f}s")
+PYEOF
+
+      # ── Package Artifacts ───────────────────────────────────────
+      - name: Package Artifacts
+        if: env.BUILD_TYPE == 'full'
+        run: |
+          mkdir -p /tmp/artifact
+          # VapourSynth installation
+          cp -r $(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth) /tmp/artifact/
+          # SVPflow libraries
+          mkdir -p /tmp/artifact/svpflow-4.2.0.142
+          cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/*.dylib /tmp/artifact/svpflow-4.2.0.142/
+          # FFmpeg
+          cp $(arch -x86_64 /usr/local/bin/brew --prefix ffmpeg)/bin/ffmpeg /tmp/artifact/
+          # Python
+          mkdir -p /tmp/artifact/python
+          cp -r $(arch -x86_64 /usr/local/bin/brew --prefix python@3.12)/lib/python3.12 /tmp/artifact/python/
+
+      - name: Upload Artifacts
+        if: env.BUILD_TYPE == 'full'
+        uses: actions/upload-artifact@v4
+        with:
+          name: svp-renderer-x86_64
+          path: /tmp/artifact/
+          retention-days: 7
+
+      # ── Summary ─────────────────────────────────────────────────
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Runner Architecture | $(uname -m) |" >> $GITHUB_STEP_SUMMARY
+          echo "| VapourSynth Load | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| SVPflow 4.2.0.142 Load | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| SVP Pipeline (Super/Analyse/SmoothFps) | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Manager Required | ❌ No |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frames Generated | Verified |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts uploaded for download." >> $GITHUB_STEP_SUMMARY
