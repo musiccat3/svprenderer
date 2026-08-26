@@ -8,8 +8,11 @@ print('VapourSynth version:', vs.__version__)
 core = vs.core
 print('Core created')
 
+# SVPflow 4.2.0.142 libraries are installed by Homebrew to /usr/local/opt/vapoursynth/lib/vapoursynth/
+plugin_dir = '/usr/local/opt/vapoursynth/lib/vapoursynth/'
+
 for p in ['libsvpflow1_vs64.dylib', 'libsvpflow2_vs64.dylib']:
-    path = f'/usr/local/lib/vapoursynth/{p}'
+    path = os.path.join(plugin_dir, p)
     if os.path.exists(path):
         core.std.LoadPlugin(path=path)
         print(f'Loaded: {p}')
