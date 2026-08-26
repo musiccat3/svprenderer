@@ -4,14 +4,13 @@ import json
 import sys
 import os
 
-# Load SVPflow plugins first
+# Load SVPflow plugins first - they must be loaded before creating the core
 plugin_dir = '/usr/local/opt/vapoursynth/lib/vapoursynth/'
-core = vs.core
 
 for p in ['libsvpflow1_vs64.dylib', 'libsvpflow2_vs64.dylib']:
     path = os.path.join('/usr/local/opt/vapoursynth/lib/vapoursynth/', p)
     if os.path.exists(path):
-        core.std.LoadPlugin(path=path)
+        vs.core.std.LoadPlugin(path=path)
         print(f'Loaded: {p}')
     else:
         print(f'MISSING: {path}')
