@@ -63,7 +63,7 @@ jobs:
             nm -g "$f" | grep -E "SVSuper|SVAnalyse|SVSmoothFps|svp" | head -20
           done
 
-      - name: Install Homebrew (x86_64)
+      - name: Install Homebrew (x86_64 to /usr/local)
         run: |
           if [[ ! -d /usr/local/Homebrew ]]; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/null
