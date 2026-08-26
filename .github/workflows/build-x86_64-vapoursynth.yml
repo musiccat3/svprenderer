@@ -96,7 +96,7 @@ jobs:
 
       - name: Install Dependencies (x86_64)
         run: |
-          arch -x86_64 /usr/local/bin/brew install vapoursynth ffmpeg python@3.12
+          arch -x86_64 /usr/local/bin/brew install --overwrite vapoursynth ffmpeg python@3.12
           arch -x86_64 /usr/local/bin/brew list --versions
 
       - name: Install SVPflow 4.2.0.142 Libraries
