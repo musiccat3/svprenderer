@@ -65,10 +65,9 @@ jobs:
 
       - name: Install Homebrew (x86_64 to /usr/local)
         run: |
-          if [[ ! -d /usr/local/Homebrew ]]; then
-            mkdir -p /usr/local/Homebrew
-            curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C /usr/local/Homebrew
-          fi
+          sudo mkdir -p /usr/local/Homebrew
+          sudo chown -R $(whoami):admin /usr/local/Homebrew
+          curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C /usr/local/Homebrew
           echo "/usr/local/bin" >> $GITHUB_PATH
 
       - name: Install Dependencies (x86_64)
