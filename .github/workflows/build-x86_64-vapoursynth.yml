@@ -22,7 +22,7 @@ on:
 jobs:
   build-x86_64:
     name: Build x86_64 VapourSynth + SVPflow
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 60
 
     env:
@@ -39,16 +39,6 @@ jobs:
           echo ""
           echo "=== macOS Version ==="
           sw_vers
-          echo ""
-          echo "=== Check for x86_64 Homebrew ==="
-          ls -la /usr/local/bin/brew 2>/dev/null || echo "No /usr/local/bin/brew"
-          ls -la /opt/homebrew/bin/brew 2>/dev/null || echo "No /opt/homebrew/bin/brew"
-          echo ""
-          echo "=== macOS Version ==="
-          sw_vers
-          echo ""
-          echo "=== Available SDKs ==="
-          ls /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
           echo ""
           echo "=== Clang Version ==="
           clang --version
@@ -79,28 +69,14 @@ jobs:
             nm -g "$f" | grep -E "SVSuper|SVAnalyse|SVSmoothFps|svp" | head -20
           done
 
-      - name: Use Pre-installed x86_64 Homebrew
+      - name: Install Dependencies
         run: |
-          # Check for x86_64 Homebrew at /usr/local/bin/brew
-          if [[ -x /usr/local/bin/brew ]]; then
-            echo "Found x86_64 Homebrew at /usr/local/bin/brew"
-            /usr/local/bin/brew --version
-          else
-            echo "No x86_64 Homebrew at /usr/local/bin/brew, checking /opt/homebrew..."
-            if [[ -x /opt/homebrew/bin/brew ]]; then
-              echo "Found ARM64 Homebrew at /opt/homebrew/bin/brew"
-            fi
-            exit 1
-          fi
-
-      - name: Install Dependencies (x86_64)
-        run: |
-          arch -x86_64 /usr/local/bin/brew install vapoursynth ffmpeg python@3.12
-          arch -x86_64 /usr/local/bin/brew list --versions
+          brew install vapoursynth ffmpeg python@3.12
+          brew list --versions
 
       - name: Install SVPflow 4.2.0.142 Libraries
         run: |
-          SVP_PLUGIN_DIR=$(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth)/lib/vapoursynth
+          SVP_PLUGIN_DIR=$(brew --prefix vapoursynth)/lib/vapoursynth
           echo "SVP Plugin Dir: $SVP_PLUGIN_DIR"
           mkdir -p "$SVP_PLUGIN_DIR"
           cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/libsvpflow1_vs64.dylib "$SVP_PLUGIN_DIR/"
@@ -111,29 +87,29 @@ jobs:
 
       - name: Diagnostic - VapourSynth Load Test
         run: |
-          arch -x86_64 /usr/local/bin/vspipe --version
-          arch -x86_64 /usr/local/bin/python3 .github/scripts/vapoursynth_load_test.py
+          vspipe --version
+          python3 .github/scripts/vapoursynth_load_test.py
 
       - name: Diagnostic - SVP Pipeline Test
         run: |
-          arch -x86_64 /usr/local/bin/python3 .github/scripts/svp_pipeline_test.py
+          python3 .github/scripts/svp_pipeline_test.py
 
       - name: Full Render Test (30s clip @ 120fps)
         if: env.BUILD_TYPE == 'full'
         run: |
-          arch -x86_64 /usr/local/bin/ffmpeg -f lavfi -i testsrc=duration=30:size=1920x1080:rate=30 -c:v libx264 -pix_fmt yuv420p /tmp/test_30s.mp4 -y
-          arch -x86_64 /usr/local/bin/python3 .github/scripts/full_render_test.py
+          ffmpeg -f lavfi -i testsrc=duration=30:size=1920x1080:rate=30 -c:v libx264 -pix_fmt yuv420p /tmp/test_30s.mp4 -y
+          python3 .github/scripts/full_render_test.py
 
       - name: Package Artifacts
         if: env.BUILD_TYPE == 'full'
         run: |
           mkdir -p /tmp/artifact
-          cp -r $(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth) /tmp/artifact/
+          cp -r $(brew --prefix vapoursynth) /tmp/artifact/
           mkdir -p /tmp/artifact/svpflow-4.2.0.142
           cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/*.dylib /tmp/artifact/svpflow-4.2.0.142/
-          cp $(arch -x86_64 /usr/local/bin/brew --prefix ffmpeg)/bin/ffmpeg /tmp/artifact/
+          cp $(brew --prefix ffmpeg)/bin/ffmpeg /tmp/artifact/
           mkdir -p /tmp/artifact/python
-          cp -r $(arch -x86_64 /usr/local/bin/brew --prefix python@3.12)/lib/python3.12 /tmp/artifact/python/
+          cp -r $(brew --prefix python@3.12)/lib/python3.12 /tmp/artifact/python/
 
       - name: Upload Artifacts
         if: env.BUILD_TYPE == 'full'
