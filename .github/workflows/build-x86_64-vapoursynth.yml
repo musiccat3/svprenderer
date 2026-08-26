@@ -66,7 +66,8 @@ jobs:
       - name: Install Homebrew (x86_64 to /usr/local)
         run: |
           if [[ ! -d /usr/local/Homebrew ]]; then
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/null
+            mkdir -p /usr/local/Homebrew
+            curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C /usr/local/Homebrew
           fi
           echo "/usr/local/bin" >> $GITHUB_PATH
 
