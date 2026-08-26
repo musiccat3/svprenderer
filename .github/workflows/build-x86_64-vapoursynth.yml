@@ -94,9 +94,21 @@ jobs:
             exit 1
           fi
 
+      - name: Remove Conflicting Python Symlinks
+        run: |
+          # Remove conflicting Python symlinks that cause brew link failures
+          for f in 2to3 idle3 pydoc3 pip3 python3 python3-config pip3.* python3.* idle3.* pydoc3.*; do
+            rm -f /usr/local/bin/$f 2>/dev/null || true
+          done
+
+      - name: Install Python 3.12 First
+        run: |
+          arch -x86_64 /usr/local/bin/brew install --overwrite python@3.12
+          arch -x86_64 /usr/local/bin/brew link --overwrite python@3.12
+
       - name: Install Dependencies (x86_64)
         run: |
-          arch -x86_64 /usr/local/bin/brew install --overwrite vapoursynth ffmpeg python@3.12
+          arch -x86_64 /usr/local/bin/brew install --overwrite vapoursynth ffmpeg
           arch -x86_64 /usr/local/bin/brew list --versions
 
       - name: Install SVPflow 4.2.0.142 Libraries
