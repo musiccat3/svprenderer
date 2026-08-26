@@ -40,6 +40,13 @@ jobs:
           echo "=== macOS Version ==="
           sw_vers
           echo ""
+          echo "=== Check for x86_64 Homebrew ==="
+          ls -la /usr/local/bin/brew 2>/dev/null || echo "No /usr/local/bin/brew"
+          ls -la /opt/homebrew/bin/brew 2>/dev/null || echo "No /opt/homebrew/bin/brew"
+          echo ""
+          echo "=== macOS Version ==="
+          sw_vers
+          echo ""
           echo "=== Available SDKs ==="
           ls /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
           echo ""
@@ -72,12 +79,19 @@ jobs:
             nm -g "$f" | grep -E "SVSuper|SVAnalyse|SVSmoothFps|svp" | head -20
           done
 
-      - name: Install Homebrew (x86_64 to /usr/local)
+      - name: Use Pre-installed x86_64 Homebrew
         run: |
-          sudo mkdir -p /usr/local/Homebrew
-          sudo chown -R $(whoami):admin /usr/local/Homebrew
-          curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C /usr/local/Homebrew
-          echo "/usr/local/bin" >> $GITHUB_PATH
+          # Check for x86_64 Homebrew at /usr/local/bin/brew
+          if [[ -x /usr/local/bin/brew ]]; then
+            echo "Found x86_64 Homebrew at /usr/local/bin/brew"
+            /usr/local/bin/brew --version
+          else
+            echo "No x86_64 Homebrew at /usr/local/bin/brew, checking /opt/homebrew..."
+            if [[ -x /opt/homebrew/bin/brew ]]; then
+              echo "Found ARM64 Homebrew at /opt/homebrew/bin/brew"
+            fi
+            exit 1
+          fi
 
       - name: Install Dependencies (x86_64)
         run: |
