@@ -23,7 +23,7 @@ print(f"Test clip: {clip.width}x{clip.height}, {clip.num_frames} frames @ {float
 # Disable GPU since GitHub Actions runners don't have GPU support
 super_str = json.dumps({"pel": 1, "gpu": False})
 vectors_str = json.dumps({"block": {"w": 8, "overlap": 2}, "main": {"search": {"distance": 0, "coarse": {"distance": -10}}}})
-smooth_str = json.dumps({"rate": {"num": 60, "abs": True}, "algo": 13, "mask": {"area": 50, "area_sharp": 1.2}, "scene": {"blend": False, "mode": 0, "limits": {"blocks": 9999999}}})
+smooth_str = json.dumps({"rate": {"num": 60, "abs": True}, "algo": 13, "mask": {"area": 50, "area_sharp": 1.2}, "scene": {"blend": False, "mode": 0, "limits": {"blocks": 9999999}}, "gpu": False})
 
 try:
     super_clip = core.svp1.Super(clip, super_str)
