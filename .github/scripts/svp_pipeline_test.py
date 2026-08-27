@@ -40,6 +40,8 @@ try:
             break
     print(f"Frames generated: {frame_count}")
     print("SUCCESS: SVP pipeline works without Manager!")
+    # Exit immediately to avoid segfault during Python cleanup (known issue with VapourSynth plugins on macOS)
+    os._exit(0)
 except Exception as e:
     print(f"ERROR: {type(e).__name__}: {e}")
     import traceback
