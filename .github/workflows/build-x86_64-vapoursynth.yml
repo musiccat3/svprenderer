@@ -141,10 +141,18 @@ jobs:
         if: env.BUILD_TYPE == 'full'
         run: |
           mkdir -p /tmp/artifact
-          cp -r $(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth) /tmp/artifact/
+          # Copy vapoursynth installation (excluding problematic Python site-packages)
+          VAPOURSYNTH_PREFIX=$(arch -x86_64 /usr/local/bin/brew --prefix vapoursynth)
+          mkdir -p /tmp/artifact/vapoursynth
+          cp -r "$VAPOURSYNTH_PREFIX"/bin /tmp/artifact/vapoursynth/
+          cp -r "$VAPOURSYNTH_PREFIX"/lib /tmp/artifact/vapoursynth/
+          cp -r "$VAPOURSYNTH_PREFIX"/share /tmp/artifact/vapoursynth/ 2>/dev/null || true
+          # Copy SVPflow libraries
           mkdir -p /tmp/artifact/svpflow-4.2.0.142
           cp /tmp/svpflow-4.2.0.142/svpflow-4.2.0.142/lib-macos/*.dylib /tmp/artifact/svpflow-4.2.0.142/
+          # Copy FFmpeg
           cp $(arch -x86_64 /usr/local/bin/brew --prefix ffmpeg)/bin/ffmpeg /tmp/artifact/
+          # Copy Python 3.12
           mkdir -p /tmp/artifact/python
           cp -r $(arch -x86_64 /usr/local/bin/brew --prefix python@3.12)/lib/python3.12 /tmp/artifact/python/
 
